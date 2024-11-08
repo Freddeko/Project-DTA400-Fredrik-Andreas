@@ -157,7 +157,7 @@ for i in range(len(utilization_list)):
     run_num_list__utilization.append(i)
 plt.plot(run_num_list__utilization, utilization_list, marker='o')
 plt.xlabel('Simulation number')
-plt.ylabel('Procent')
+plt.ylabel('Percent')
 plt.title('Utilization')
 plt.show()
 
