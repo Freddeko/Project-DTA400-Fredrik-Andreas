@@ -133,7 +133,7 @@ run_num_list__wait = []
 for i in range(len(average_wait_time_list)):
     i+=1
     run_num_list__wait.append(i)
-plt.plot(run_num_list__wait, average_wait_time_list, marker='o')
+plt.plot(run_num_list__wait, average_wait_time_list, marker='o', label = "Average Wait Time")
 #plt.xlabel('Simulation number')
 #plt.ylabel('Average Wait Time')
 #plt.title('Average Wait Time')
@@ -143,10 +143,11 @@ run_num_list__queue = []
 for i in range(len(average_queue_length_list)):
     i+=1
     run_num_list__queue.append(i)
-plt.plot(run_num_list__queue, average_queue_length_list, marker='o')
+plt.plot(run_num_list__queue, average_queue_length_list, marker='o', label = "Average Queue Length")
 plt.xlabel('Simulation number')
 plt.ylabel('Days')
-plt.title('Average Queue Length and Average Wait Time')
+plt.title('Key Metrics')
+plt.legend()
 plt.show()
 
 run_num_list__utilization = []
