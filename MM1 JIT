@@ -1,0 +1,170 @@
+"""
+The following code implements a simulation of
+a Just-In-Time (JIT) store utilizing an M/M/1 queue system,
+where orders arrive at the store following a Poisson distribution.
+In this model, each order waits in line until they are served.
+Upon being served, the production begins,
+and after a specified time—determined by an exponential distribution—the customer receives their product.
+
+The simulation aims to analyze key performance metrics,
+including the average wait time, average queue time, server utilization, and throughput.
+Additionally, the results are visualized through a graph to illustrate the performance
+of the JIT store under varying conditions. This analysis provides valuable insights into
+the efficiency and effectiveness of the queue management system, enabling optimization strategies to enhance customer service.
+"""
+import itertools                                                            # Order_id
+import random                                                               # Random number
+import simpy                                                                # Simulation
+import numpy as np                                                          # Import numpy for exponential and poisson distribution
+import matplotlib.pyplot as plt                                             # Graph
+
+# fmt: off
+RANDOM_SEED = 42                                                            # Reproduce the results
+NUM_MACHINES = 1                                                            # Number of machines in the store
+PRODUCTION_TIME = 2                                                         # Mean minutes it takes to produce one product
+ARRIVAL_TIME = 10                                                           # Customer arrives every mean "ARRIVAL_TIME" minutes
+SIM_TIME = 100000                                                           # Simulation time in minutes
+production_time_total = 0                                                   # Sum of total production time
+production_num_total = 0                                                    # Sum of total production number
+arrival_time_total = 0                                                      # Sum of total arrival time
+arrival_num_total = 0                                                       # Sum of total arrival number
+arrival_time_start = 0
+arrival_time_start += ARRIVAL_TIME
+simulation = 0
+average_wait_time_list = []
+average_queue_length_list = []
+utilization_list = []
+average_rate_list = []
+# fmt: on
+
+class JITstore:
+    def __init__(self, env, num_machines, production_self):
+        self.env = env
+        self.machine = simpy.Resource(env, num_machines)
+        self.production_self = production_self
+
+    def production(self, order_id):
+        """
+        Production process.
+        """
+        global production_time_total                                        # Fetch the variable from outside the class
+        production_self_exp = np.random.exponential(self.production_self)   # Exponential service times
+        yield self.env.timeout(production_self_exp)                         # Time it takes to produce one product
+        production_time_total += production_self_exp                        # Add production time to production_time_total
+
+def order(env, order_id, production_order):
+    """
+    Order process.
+    """
+    global production_num_total                                             # Fetch the variable from outside the function
+    #print(f'{order_id} arrives at the store at {env.now:.2f}.')            # Print "order_id arrives at the store (time.now)"
+    with production_order.machine.request() as request:                     # Loop
+        yield request                                                       # Wait until the machine is ready
+        #print(f'{order_id} being produced at {env.now:.2f}.')              # Print "being produced at (time.now)"
+        yield env.process(production_order.production(order_id))            # Forwarding to the function production in class JITstore
+        #print(f'{order_id} is shipped to the customer at {env.now:.2f}.')  # Print "order_id is shipped to the customer at (time.now)"
+        production_num_total += 1                                           # Add one to total production number
+
+def setup(env, num_machines, production_setup_time, arrival_setup_time):
+    """
+    Create a store, a number of initial customers and keep creating customer with poisson distribution.
+    """
+    global arrival_time_total                                               # Fetch the variable from outside the function
+    global arrival_num_total                                                # Fetch the variable from outside the function
+    production_setup = JITstore(env, num_machines, production_setup_time)   # Create the store
+    order_id = itertools.count()                                            # Creates an iterator that generates an infinite sequence of unique order IDs, starting from zero.
+    for _ in range(4):                                                      # Create 4 initial customers
+        env.process(order(env, f'Order {next(order_id)}', production_setup))# Create one customer
+        arrival_num_total += 1                                              # Add one to total arrival number
+    while True:                                                             # Create more customers while the simulation is running
+        arrival_time_exp = np.random.poisson(arrival_setup_time)            # Make the arrival time with poisson distribution
+        arrival_time_total += arrival_time_exp                              # Add arrival time with poisson distribution to total arrival time 
+        yield env.timeout(arrival_time_exp)                                 # Wait time to arrival
+        env.process(order(env, f'Order {next(order_id)}', production_setup))# Create one customer
+        arrival_num_total += 1                                              # Add one to total arrival number
+
+"""
+Setup and start the simulation
+"""
+print('-------------------')
+print('JIT Store')
+print('-------------------')
+while True:
+    arrival_time_start = arrival_time_start * 0.9
+    production_time_total = 0                                                   # Sum of total production time
+    production_num_total = 0                                                    # Sum of total production number
+    arrival_time_total = 0                                                      # Sum of total arrival time
+    arrival_num_total = 0                                                       # Sum of total arrival number
+    simulation +=1
+    print(f'Simulation: {simulation}')
+    random.seed(RANDOM_SEED)                                                    # This helps to reproduce the results
+    env = simpy.Environment()                                                   # Create an environment and start the setup process
+    env.process(setup(env, NUM_MACHINES, PRODUCTION_TIME, arrival_time_start))  # Forwarding to the function setup
+    env.run(until=SIM_TIME)                                                     # Execute!
+    mean_production_time = (production_time_total/production_num_total)         # Mean production time
+    mean_arrival_time = (arrival_time_total/arrival_num_total)                  # Mean arrival time
+    service_rate = 1 / mean_production_time                                     # The average number of customers that can be served per unit of time
+    arrival_rate = 1 / mean_arrival_time                                        # The average number of customers arriving per unit of time.
+    print(f'Service Rate: {service_rate:.2f}')
+    print(f'Arrival Rate: {arrival_rate:.2f}')
+    if arrival_rate < service_rate:
+        average_wait_time = arrival_rate/(service_rate *(service_rate - arrival_rate))
+        print(f'Average Wait Time: {average_wait_time:.2f} Minutes')
+        average_wait_time_list.append(average_wait_time)
+        average_queue_length = (arrival_rate**2)/(service_rate *(service_rate - arrival_rate))
+        print(f'Average Queue Length: {average_queue_length:.2f} Customers')
+        average_queue_length_list.append(average_queue_length)
+    else:
+        print(f'Average Wait Time: Infinite!')
+        average_wait_time_list.append(float('inf'))
+        print(f'Average Queue Length: Infinite!')
+        average_queue_length_list.append(float('inf'))
+    utilization = arrival_rate / service_rate
+    utilization_percent = utilization * 100
+    print(f'Utilization: {utilization_percent:.2f}%')
+    utilization_list.append(utilization_percent)
+    print(f'Throughput: {arrival_rate:.2f} Customers per Minute')
+    average_rate_list.append(arrival_rate)
+    print('-------------------')
+    if utilization > 1:
+        break
+
+run_num_list__wait = []
+for i in range(len(average_wait_time_list)):
+    i+=1
+    run_num_list__wait.append(i)
+plt.plot(run_num_list__wait, average_wait_time_list, marker='o')
+#plt.xlabel('Simulation number')
+#plt.ylabel('Average Wait Time')
+#plt.title('Average Wait Time')
+#plt.show()
+
+run_num_list__queue = []
+for i in range(len(average_queue_length_list)):
+    i+=1
+    run_num_list__queue.append(i)
+plt.plot(run_num_list__queue, average_queue_length_list, marker='o')
+plt.xlabel('Simulation number')
+plt.ylabel('Days')
+plt.title('Average Queue Length and Average Wait Time')
+plt.show()
+
+run_num_list__utilization = []
+for i in range(len(utilization_list)):
+    i+=1
+    run_num_list__utilization.append(i)
+plt.plot(run_num_list__utilization, utilization_list, marker='o')
+plt.xlabel('Simulation number')
+plt.ylabel('Procent')
+plt.title('Utilization')
+plt.show()
+
+run_num_list__throughput = []
+for i in range(len(average_rate_list)):
+    i+=1
+    run_num_list__throughput.append(i)
+plt.plot(run_num_list__throughput, average_rate_list, marker='o')
+plt.xlabel('Simulation number')
+plt.ylabel('Number of orders')
+plt.title('Throughput')
+plt.show()
